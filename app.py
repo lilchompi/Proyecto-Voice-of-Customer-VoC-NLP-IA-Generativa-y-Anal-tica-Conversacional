@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import json
 from pathlib import Path
 
 # Configuración de página Streamlit
@@ -49,27 +50,144 @@ st.markdown("""
         border-radius: 6px;
         margin-bottom: 12px;
     }
+    .cx-case-title {
+        color: #f8fafc;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Cargar y almacenar en caché ultra-rápida
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_all_datasets():
-    output_dir = Path("outputs")
-    
-    conv_df = pd.read_csv(output_dir / "conversaciones_enriquecidas.csv")
-    motivos_df = pd.read_csv(output_dir / "motivos_no_pago.csv")
-    ofertas_df = pd.read_csv(output_dir / "efectividad_ofertas.csv")
-    arg_df = pd.read_csv(output_dir / "efectividad_argumentos.csv")
-    worst5_df = pd.read_csv(output_dir / "worst5_satisfaccion.csv")
-    
-    return conv_df, motivos_df, ofertas_df, arg_df, worst5_df
+OUTPUT_DIR = Path("outputs")
+PARTIAL_CONVERSATIONS_PATH = OUTPUT_DIR / "conversaciones_enriquecidas_parcial.csv"
+FINAL_CONVERSATIONS_PATH = OUTPUT_DIR / "conversaciones_enriquecidas.csv"
+PROGRESS_PATH = OUTPUT_DIR / "progreso_llm.json"
 
-conv_df, motivos_df, ofertas_df, arg_df, worst5_df = load_all_datasets()
+
+def active_conversations_path():
+    return PARTIAL_CONVERSATIONS_PATH if PARTIAL_CONVERSATIONS_PATH.exists() else FINAL_CONVERSATIONS_PATH
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def load_conversations(path_str, modified_at_ns):
+    conversations = pd.read_csv(path_str)
+    conversations["score_satisfaccion"] = conversations["score_satisfaccion"].clip(0, 100)
+    return conversations
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def load_progress(modified_at_ns):
+    if not PROGRESS_PATH.exists():
+        return None
+    with open(PROGRESS_PATH, encoding="utf-8") as progress_file:
+        return json.load(progress_file)
+
+
+def load_current_conversations():
+    path = active_conversations_path()
+    if not path.exists():
+        st.error("Aún no existe un resultado del pipeline LLM. Ejecuta primero la celda del pipeline.")
+        st.stop()
+    return load_conversations(str(path), path.stat().st_mtime_ns)
+
+
+conv_df = load_current_conversations()
+motivos_df = pd.read_csv(OUTPUT_DIR / "motivos_no_pago.csv")
+ofertas_df = pd.read_csv(OUTPUT_DIR / "efectividad_ofertas.csv")
+arg_df = pd.read_csv(OUTPUT_DIR / "efectividad_argumentos.csv")
 
 # Header Principal
 st.title("🎙️ Voice of Customer (VoC) & Copiloto RAG - Base Real (42,607 Mensajes)")
 st.markdown("Plataforma de Analítica Conversacional de Cobranzas por WhatsApp optimizada para alta velocidad de procesamiento.")
+
+
+@st.fragment(run_every=5)
+def show_live_llm_progress():
+    path = active_conversations_path()
+    if not PARTIAL_CONVERSATIONS_PATH.exists() or not path.exists():
+        return
+
+    live_df = load_conversations(str(path), path.stat().st_mtime_ns)
+    progress = load_progress(PROGRESS_PATH.stat().st_mtime_ns if PROGRESS_PATH.exists() else 0)
+    processed = progress["procesadas"] if progress else len(live_df)
+    total = progress["total"] if progress else 1197
+    updated_at = progress["actualizado_en"] if progress else "sin estado"
+
+    col_progress, col_updated = st.columns(2)
+    col_progress.metric("Resultados LLM disponibles", f"{len(live_df):,}", f"{processed:,} / {total:,} del lote actual")
+    col_updated.caption(f"Última actualización: {updated_at}. Se refresca automáticamente cada 5 segundos.")
+
+
+def cx_factors_and_recommendations(row):
+    factors = []
+    recommendations = []
+    motivos = str(row.get("motivos_no_pago", "")).lower()
+    tono_cliente = str(row.get("tono_cliente", "")).lower()
+    tono_asesor = str(row.get("tono_asesor", "")).lower()
+
+    if bool(row.get("requiere_escalamiento", False)):
+        factors.append("Caso sensible sin resolución inmediata (pago reportado o disputa de cobro).")
+        recommendations.append("Derivar a una mesa de validación y pausar la gestión de cobro hasta cerrar el caso.")
+    if "desconexion" in motivos or "rebote" in motivos:
+        factors.append("Ruptura de atención o rebote entre canales.")
+        recommendations.append("Asignar un responsable único y evitar remitir al cliente a canales ya contactados.")
+    if "falta_liquidez" in motivos or "desempleo" in motivos:
+        factors.append("Restricción económica explícita del cliente.")
+        recommendations.append("Ofrecer una alternativa concreta y verificable de cuota, plazo o refinanciación.")
+    if tono_cliente in {"frustrado", "indignado"}:
+        factors.append(f"Tono del cliente: {tono_cliente}.")
+        recommendations.append("Aplicar contención empática, confirmar el problema y comunicar el siguiente paso con plazo.")
+    if tono_asesor in {"presionador", "ineficaz"}:
+        factors.append(f"Tono del asesor: {tono_asesor}.")
+        recommendations.append("Reforzar escucha activa y sustituir mensajes repetitivos por una solución accionable.")
+    if int(row.get("acuerdo_pago", 0)) == 0:
+        factors.append("La conversación cerró sin un acuerdo de pago verificable.")
+        recommendations.append("Cerrar con una alternativa, fecha de seguimiento y canal de confirmación.")
+
+    return factors or ["Score CSAT bajo reportado sin factor estructurado adicional."], recommendations or [
+        "Revisar la transcripción y realizar seguimiento de calidad con el asesor responsable."
+    ]
+
+
+@st.fragment(run_every=5)
+def show_live_worst_five():
+    path = active_conversations_path()
+    live_df = load_conversations(str(path), path.stat().st_mtime_ns)
+    worst_five = live_df.nsmallest(5, "score_satisfaccion").copy()
+
+    st.caption(
+        f"Ranking en vivo basado en {len(live_df):,} conversaciones procesadas. "
+        "Se actualiza automáticamente cada 5 segundos."
+    )
+
+    for _, row in worst_five.iterrows():
+        factors, recommendations = cx_factors_and_recommendations(row)
+        csat = "-" if pd.isna(row.get("csat_declarado")) else f"{int(row['csat_declarado'])}/7"
+        with st.container(border=True):
+            heading, score, csat_metric = st.columns([5, 1, 1])
+            heading.markdown(f"<div class='cx-case-title'>{row['conversation_id']}</div>", unsafe_allow_html=True)
+            score.metric("Satisfacción", f"{int(row['score_satisfaccion'])}/100")
+            csat_metric.metric("CSAT", csat)
+
+            tone_client, tone_advisor = st.columns(2)
+            tone_client.caption(f"**Tono cliente (LLM):** {row['tono_cliente']}")
+            tone_advisor.caption(f"**Tono asesor:** {row['tono_asesor']}")
+            st.markdown(f"**Resumen IA:** {row['resumen_conversacion']}")
+
+            factor_column, recommendation_column = st.columns(2)
+            with factor_column:
+                st.markdown("**Factores que afectaron la experiencia**")
+                for factor in factors:
+                    st.markdown(f"- {factor}")
+            with recommendation_column:
+                st.markdown("**Acciones recomendadas**")
+                for recommendation in recommendations:
+                    st.markdown(f"- {recommendation}")
+            with st.expander("Ver transcripción completa"):
+                st.code(str(row["transcript"]).replace(" | ", "\n"), language="text")
+
+
 st.divider()
 
 # Sidebar de Filtros e Indicadores
@@ -197,7 +315,8 @@ if tab_selection == "📊 Dashboard Ejecutivos (EDA)":
 elif tab_selection == "📑 Resumen de Conversaciones (Paginado)":
     st.header("📑 Resumen Ejecutivo de Conversaciones Reales (Paginación de Alto Rendimiento)")
     st.markdown("Visualización optimizada con paginación instantánea de las 1,197 conversaciones.")
-    
+    show_live_llm_progress()
+
     # Paginación fluida
     PAGE_SIZE = 15
     total_items = len(filtered_conv)
@@ -234,109 +353,9 @@ elif tab_selection == "📑 Resumen de Conversaciones (Paginado)":
 elif tab_selection == "⚠️ Análisis CX - 5 Peores Calificadas":
     st.header("⚠️ Diagnóstico Profundo: Top 5 Conversaciones con Menor Satisfacción")
     st.markdown("""
-    Análisis detallado de los casos con menor CSAT registrado (CSAT Declarado = 0/1 - Totalmente Insatisfecho).
-    Se descarta la clasificación errónea de *'emergencia familiar'* y se enfoca en las verdaderas causas operativas: 
-    **disputas de cobro, desactualización de pagos, evasión del gestor y rebote entre canales**.
-    """)
+    Análisis detallado de los casos con menor CSAT registrado (CSAT Declarado = 0/1 - Totalmente Insatisfecho).""")
     st.divider()
-
-    st.subheader("🤖 1. Schema de Extracción JSON Mode para LLMs")
-    st.markdown("""
-    ```json
-    {
-      "chat_id": "CONV_00000018",
-      "motivo_no_pago": "Pago Ya Realizado / Desvinculación de Mensajes",
-      "submotivo_no_pago": "Cobranza repetitiva a cliente al día sin flexibilidad de validación",
-      "oferta_asesor": "Exigencia de datos / Negativa a consultar o desvincular",
-      "acuerdo_pago": false,
-      "fecha_compromiso_pago": null,
-      "csat_score": 1,
-      "nps_score": 0,
-      "ces_score": 5,
-      "factores_negativos_csat": [
-        "Cobranza a cliente que ya pagó",
-        "Negativa del gestor a revisar pagos o bloquear mensajes",
-        "Falta de flexibilidad en validación de identidad"
-      ],
-      "resumen_ejecutivo": "El cliente manifiesta estar al día y solicita no recibir más cobros. El gestor niega la consulta sin validación de datos previa, causando molestia extrema y abandono con CSAT 1."
-    }
-    ```
-    """)
-    st.divider()
-
-    st.subheader("🔬 2. Análisis de Flujo Conversacional en 4 Fases Operativas")
-    
-    phases_info = {
-        "CONV_00000018": {
-            "title": "CONV_00000018 - Pago Ya Realizado & Exigencia de Desvinculación",
-            "f1": "Cliente inicia interacción pidiendo hablar con un asesor ('HABLAR CON ASESOR').",
-            "f2": "Cliente indica no tener los datos a la mano y reclama que le siguen enviando mensajes de cobro a pesar de haber pagado.",
-            "f3": "Gestor indica que no puede consultar ni desvincular el número sin pasar filtro de seguridad y responde que no es algo que él controle.",
-            "f4": "Cliente se indigna ('¿Entonces para qué me sirves tú?') y califica con CSAT 1/7, NPS 0/10 y CES 5/5."
-        },
-        "CONV_00000042": {
-            "title": "CONV_00000042 - Trámite de Reestructuración Cancelado sin Notificación",
-            "f1": "Cliente atiende campaña HSM con disposición ('ME INTERESA').",
-            "f2": "Cliente manifiesta llevar 15 días esperando respuesta de su 3er acuerdo de pago y se enteró por teléfono de que fue cancelado en junio sin aviso.",
-            "f3": "Gestor evade continuar la atención argumentando 'evitar información duplicada' y cierra el chat abruptamente.",
-            "f4": "Cliente queda desatendido tras 2 meses de gestiones y califica CSAT 1/7, CES 5/5."
-        },
-        "CONV_00000062": {
-            "title": "CONV_00000062 - Descuento de Nómina al Día & Rebote Infinito",
-            "f1": "Cliente consulta sobre notificación de mora en su crédito de vehículo.",
-            "f2": "Cliente aclara que el pago se descuenta automáticamente por nómina y la empresa le confirma estar al día.",
-            "f3": "Gestor lo remite a la línea telefónica de Servicio al Cliente. Cliente responde que en Servicio al Cliente lo rebotaron a este WhatsApp.",
-            "f4": "Gestor repite el mensaje automático de la línea telefónica y cierra. CSAT 1/7."
-        },
-        "CONV_00000089": {
-            "title": "CONV_00000089 - Cobranza a Línea Corporativa No Deudora",
-            "f1": "Bot saluda a un número que corresponde a la recepcción de una Constructora.",
-            "f2": "Constructora aclara que es un teléfono empresarial sin deudas con el banco y solicita no recibir más llamadas.",
-            "f3": "Gestor exige cédula y correo para cualquier información. La Constructora niega datos personales de un tercero desconocido.",
-            "f4": "Gestor cierra el chat sin verificar el error en la base de discado. CSAT 1/7, NPS 0/10."
-        },
-        "CONV_00000083": {
-            "title": "CONV_00000083 - Reestructuración Impagable ($4M) & HSM Engañoso",
-            "f1": "Cliente responde HSM interesado en alternativas de normalización.",
-            "f2": "Cliente explica que no niega la deuda pero la cuota previa subió a $4M en el pago final y solicita ayuda real.",
-            "f3": "Gestor responde que solo puede realizar abonos a la cuota vencida sin modificar el plan. Cliente cuestiona el HSM por falso acompañamiento.",
-            "f4": "Cliente concluye 'no tengo opción que seguir en mora'. CSAT 1/7, NPS 0/10."
-        }
-    }
-
-    for idx, row in worst5_df.iterrows():
-        cid = row['conversation_id']
-        info = phases_info.get(cid, None)
-        
-        st.markdown(f"""
-        <div class="card-recommendation">
-            <h4 style="color: #f87171; margin-top:0;">{info['title'] if info else cid} (Score: {int(row['score_satisfaccion'])}/100)</h4>
-            <p><b>Motivo Real:</b> {row['motivos_no_pago']}</p>
-            <p><b>Factores Negativos:</b> {row['factores_negativos']}</p>
-            <p><b>Recomendación de Mejora:</b> {row['recomendaciones']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if info:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(f"**Fase 1 (Inicio):** {info['f1']}")
-                st.markdown(f"**Fase 2 (Fricción):** {info['f2']}")
-            with c2:
-                st.markdown(f"**Fase 3 (Ruptura/Rebote):** {info['f3']}")
-                st.markdown(f"**Fase 4 (Evaluación):** {info['f4']}")
-        
-        with st.expander(f"Ver Transcripción Completa de {cid}"):
-            st.code(str(row["transcript"]).replace(" | ", "\n"), language="text")
-        st.write("---")
-
-    st.subheader("💡 4. Oportunidades de Mejora para el Negocio (Insights Accionables)")
-    st.markdown("""
-    - **1. Visibilidad Omnicanal de Pagos**: Integrar pasarelas PSE y reportes de pagos por nómina en la pantalla del gestor de WhatsApp.
-    - **2. Control de Cierre ante Trámites Activos**: Prohibir la opción de cerrar el chat si el cliente tiene una solicitud de reestructuración abierta en CRM.
-    - **3. Protocolo de Desvinculación Automática**: Habilitar un bot de listas negras/desvinculación cuando se identifique una línea corporativa o un titular equivocado.
-    - **4. Eliminación de Cuotas Balón**: Ajustar las políticas de reestructuración para evitar que la última cuota salte a valores impagables ($4M).
-    """)
+    show_live_worst_five()
 
 # TAB 4: SIMULADOR COPILOTO RAG
 elif tab_selection == "🤖 Simulador Copiloto RAG":

@@ -1,0 +1,20 @@
+# Entorno Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Variables de entorno (API keys — NUNCA subir al repositorio)
+.env
+.env.local
+.env.*
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Outputs generados (pueden ser grandes)
+outputs/checkpoint_*.csv
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

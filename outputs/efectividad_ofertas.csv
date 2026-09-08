@@ -1,6 +1,10 @@
 categoria,conversaciones,acuerdos,agreement_rate
-fraccionamiento,303,27,0.0891089108910891
-extension_plazo,251,21,0.08366533864541832
-refinanciacion,14,1,0.07142857142857142
-descuento,72,5,0.06944444444444445
-condonacion_intereses,20,1,0.05
+traslado_cuota,1,1,1.0
+extension_plazo,114,58,0.5087719298245614
+fraccionamiento,97,45,0.4639175257731959
+refinanciacion,52,20,0.38461538461538464
+condonacion_intereses,6,2,0.3333333333333333
+derivacion_reclamos,38,4,0.10526315789473684
+descuento,3,0,0.0
+normalizacion,2,0,0.0
+traslado_cuotas,1,0,0.0
