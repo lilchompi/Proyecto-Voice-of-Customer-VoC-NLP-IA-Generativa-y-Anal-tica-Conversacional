@@ -71,10 +71,6 @@ jupyter notebook Prueba_Tecnica_VoC_NLP_IA_Generativa.ipynb
 ├── .env                                     # Configuración de credenciales y modelos LLM
 ├── data/
 │   └── Base sintetica conversaciones.xlsx   # Dataset de 42,607 interacciones / 1,197 conversaciones
-├── scripts/
-│   ├── process_llm_pipeline.py              # Pipeline CLI de procesamiento LLM multi-proveedor
-│   ├── consolidate_metrics.py               # Generador de tablas consolidadas de efectividad
-│   └── check_dataset_stats.py               # Verificador rápido de métricas del dataset
 └── outputs/
     ├── conversaciones_enriquecidas.csv      # 1,197 conversaciones enriquecidas con variables IA
     ├── motivos_no_pago.csv                  # Frecuencia y distribución de causas de mora
