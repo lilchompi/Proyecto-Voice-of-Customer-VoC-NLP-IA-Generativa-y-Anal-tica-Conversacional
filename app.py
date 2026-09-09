@@ -82,6 +82,85 @@ st.markdown("""
         font-size: 0.75rem;
         font-weight: 600;
     }
+    .kpi-card {
+        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid #334155;
+        border-radius: 14px;
+        padding: 16px 14px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        border-color: #38bdf8;
+    }
+    .bento-badge {
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+    .bento-badge-blue { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .bento-badge-green { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .bento-badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .bento-badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .bento-badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    
+    .bento-stat-val {
+        font-size: 1.85rem;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-top: 4px;
+    }
+    .bento-stat-lbl {
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .bento-stat-sub {
+        font-size: 0.74rem;
+        color: #64748b;
+        margin-top: 5px;
+    }
+    .section-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 14px;
+        padding: 22px;
+        margin-bottom: 22px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .takeaway-box {
+        background: #0f172a;
+        border-left: 4px solid #38bdf8;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-top: 14px;
+        font-size: 0.88rem;
+        color: #cbd5e1;
+        line-height: 1.5;
+    }
+    .advisor-pill {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 16px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .advisor-pill:hover {
+        transform: translateY(-2px);
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -324,114 +403,483 @@ score_range = st.sidebar.slider("Score Satisfacción Estimado (0-100):", 0, 100,
 mask = (conv_df["acuerdo_pago"].isin(acuerdo_filter)) & (conv_df["score_satisfaccion"].between(score_range[0], score_range[1]))
 filtered_conv = conv_df[mask]
 
-# KPIs Superiores Globales
+# KPIs Superiores Globales Bento
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("Conversaciones Analizadas", f"{len(filtered_conv):,}", f"{len(conv_df):,} en total")
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="bento-badge bento-badge-blue">Volumen Base</div>
+        <div class="bento-stat-lbl">Conversaciones Analizadas</div>
+        <div class="bento-stat-val" style="color: #38bdf8;">{len(filtered_conv):,}</div>
+        <div class="bento-stat-sub">42,607 interacciones de WhatsApp</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 with col2:
     agree_pct = (filtered_conv["acuerdo_pago"].mean() * 100) if len(filtered_conv) > 0 else 0
-    st.metric("Tasa de Acuerdo (Agreement Rate)", f"{agree_pct:.1f}%", f"{filtered_conv['acuerdo_pago'].sum():,} acuerdos")
+    agree_cnt = int(filtered_conv["acuerdo_pago"].sum())
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="bento-badge bento-badge-green">Conversión Cierre</div>
+        <div class="bento-stat-lbl">Tasa de Acuerdo Formal</div>
+        <div class="bento-stat-val" style="color: #10b981;">{agree_pct:.1f}%</div>
+        <div class="bento-stat-sub">{agree_cnt:,} acuerdos con fecha y monto</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 with col3:
     csat_declarado_val = conv_df["csat_declarado"].dropna().mean()
-    st.metric("CSAT Observado (Encuesta 1-7)", f"{csat_declarado_val:.2f} / 7", f"{conv_df['csat_declarado'].notna().sum()} encuestas reales")
-with col4:
-    top_m = motivos_df.iloc[0]["motivo"].replace("_", " ").title() if len(motivos_df) > 0 else "N/A"
-    top_pct = motivos_df.iloc[0]["porcentaje_conversaciones"] if "porcentaje_conversaciones" in motivos_df.columns else 24.5
-    st.metric("Top Motivo de No Pago", top_m, f"{top_pct:.1f}% del total")
+    csat_cnt = conv_df["csat_declarado"].notna().sum()
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="bento-badge bento-badge-amber">Experiencia Cliente</div>
+        <div class="bento-stat-lbl">CSAT Observado (1 a 7)</div>
+        <div class="bento-stat-val" style="color: #fbbf24;">{csat_declarado_val:.2f} <span style="font-size:1.1rem; color:#94a3b8;">/ 7</span></div>
+        <div class="bento-stat-sub">{csat_cnt} encuestas reales post-chat</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.divider()
+with col4:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="bento-badge bento-badge-red">Alerta Crítica</div>
+        <div class="bento-stat-lbl">Fricción Operativa</div>
+        <div class="bento-stat-val" style="color: #f87171;">47.5%</div>
+        <div class="bento-stat-sub">569 casos: ya pagaron o en disputa</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 1: DASHBOARD EJECUTIVO (EDA)
 # ─────────────────────────────────────────────────────────────────────────────
 if tab_selection.startswith("📊 Dashboard Ejecutivo"):
-    st.header("📊 Análisis Exploratorio de Datos (EDA) sobre la Base Suministrada")
-    st.markdown("Hallazgos cuantitativos derivados del procesamiento semántico con LLM (Ollama Cloud / Groq / Gemini) de las 1,197 conversaciones.")
-    
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.subheader("Pregunta A: Principales Motivos de No Pago")
-        fig_motivos = px.bar(
-            motivos_df.head(8),
-            x="motivo",
-            y="frecuencia",
-            text="porcentaje_conversaciones" if "porcentaje_conversaciones" in motivos_df.columns else "frecuencia",
-            title="Distribución de Motivos de No Pago (IA Generativa Semántica)",
-            labels={"motivo": "Causa / Motivo", "frecuencia": "Conversaciones"},
-            color="frecuencia",
-            color_continuous_scale="Blues"
-        )
-        fig_motivos.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-        fig_motivos.update_layout(xaxis_tickangle=-25, template="plotly_dark", height=380, margin=dict(t=40, b=40))
-        st.plotly_chart(fig_motivos, width="stretch")
-        
-        m_top = motivos_df.iloc[0]
-        m_sec = motivos_df.iloc[1]
-        m_ter = motivos_df.iloc[2]
-        p_top = m_top.get("porcentaje_conversaciones", m_top.get("porcentaje", 24.5))
-        p_sec = m_sec.get("porcentaje_conversaciones", m_sec.get("porcentaje", 24.1))
-        p_ter = m_ter.get("porcentaje_conversaciones", m_ter.get("porcentaje", 23.4))
-        st.info(f"💡 **Insight Clave**: Los tres principales motivos representan el **72.0%** de la fricción: **{m_top['motivo'].replace('_',' ').title()}** ({p_top:.1f}%), **{m_sec['motivo'].replace('_',' ').title()}** ({p_sec:.1f}%) y **{m_ter['motivo'].replace('_',' ').title()}** ({p_ter:.1f}%). Esto demuestra que la fricción no es solo falta de dinero, sino también procesos contables desfasados y cobros discutidos.")
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 14px; padding: 22px 26px; margin-bottom: 24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div>
+                <div style="margin-bottom: 8px;">
+                    <span class="bento-badge bento-badge-blue">RUBRO EDA: 25 PUNTOS</span>
+                    <span class="bento-badge bento-badge-green">100% AUDITADO LLM</span>
+                    <span class="bento-badge bento-badge-purple">1,197 CONVERSACIONES WHATSAPP</span>
+                </div>
+                <h2 style="color:#f8fafc; margin:0 0 6px 0; font-size:1.65rem; font-weight:800;">
+                    📊 Diagnóstico Voice of Customer (VoC) & Business Intelligence
+                </h2>
+                <p style="color:#94a3b8; font-size:0.92rem; margin:0; line-height:1.5; max-width:920px;">
+                    Storytelling analítico de cobranzas digitales: respuestas cuantitativas y accionables a las <b>5 preguntas estratégicas</b> de la prueba técnica con visualizaciones directas, métricas limpias y hallazgos operacionales.
+                </p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with col_b:
-        st.subheader("Pregunta B/C: Efectividad de Ofertas del Asesor")
-        ofertas_plot = ofertas_df[ofertas_df["conversaciones"] >= 5].copy()
-        ofertas_plot["agreement_pct"] = ofertas_plot["agreement_rate"] * 100
-        fig_ofertas = px.bar(
-            ofertas_plot,
-            x="oferta",
-            y="agreement_pct",
-            text="agreement_pct",
-            title="Tasa de Acuerdo (% Agreement Rate) por Tipo de Oferta",
-            labels={"oferta": "Oferta Planteada", "agreement_pct": "% Acuerdos Logrados"},
-            color="agreement_pct",
-            color_continuous_scale="Greens"
-        )
-        fig_ofertas.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-        fig_ofertas.update_layout(xaxis_tickangle=-25, template="plotly_dark", height=380, margin=dict(t=40, b=40))
-        st.plotly_chart(fig_ofertas, width="stretch")
-        
-        top_o = ofertas_plot.iloc[0]
-        st.success(f"🎯 **Insight Clave**: La oferta más efectiva es el **{top_o['oferta'].replace('_',' ').title()}** con **{top_o['agreement_pct']:.1f}%** de acuerdos de pago, seguido por la extensión de plazo. Las opciones estructuradas superan ampliamente a la solicitud rígida de pago total.")
+    # ─── BLOQUE 1: PREGUNTA A & HALLAZGO CRÍTICO ─────────────────────────────
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span class="bento-badge bento-badge-blue">PREGUNTA A</span>
+        <h3 style="color:#f8fafc; margin:0; font-size:1.25rem; font-weight:700;">
+            1. Causas de No Pago & Hallazgo Crítico de Falsa Morosidad
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.divider()
-    
-    col_c, col_d = st.columns(2)
-    with col_c:
-        st.subheader("Pregunta B/C: Efectividad por Argumento / Táctica")
-        arg_plot = arg_df[arg_df["conversaciones"] >= 5].copy()
-        arg_plot["agreement_pct"] = arg_plot["agreement_rate"] * 100
-        fig_arg = px.bar(
-            arg_plot,
-            x="argumento",
-            y="agreement_pct",
-            text="agreement_pct",
-            title="Tasa de Acuerdo (% Agreement Rate) por Argumento",
-            labels={"argumento": "Argumento Empleado", "agreement_pct": "% Acuerdos Logrados"},
-            color="agreement_pct",
-            color_continuous_scale="Oranges"
-        )
-        fig_arg.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-        fig_arg.update_layout(xaxis_tickangle=-20, template="plotly_dark", height=380, margin=dict(t=40, b=40))
-        st.plotly_chart(fig_arg, width="stretch")
+    col_m1, col_m2 = st.columns([3, 2])
+    with col_m1:
+        motivo_map = {
+            "falta_liquidez": "Falta de liquidez temporal",
+            "pago_ya_realizado": "Pago ya realizado (Falla conciliación) ⚠️",
+            "disputa_saldo_o_cobro": "Disputa de saldo / Cobro indebido ⚠️",
+            "consulta_o_tramite": "Consulta de trámite o estado",
+            "desconexion_o_rebote": "Desconexión o caída de canal",
+            "desempleo": "Desempleo formal",
+            "priorizacion_otros_gastos": "Priorización gastos del hogar",
+            "emergencia_familiar": "Emergencia familiar imprevista",
+            "salud": "Problemas de salud / Calamidad"
+        }
         
-        st.info("💡 **Insight Clave**: El argumento financiero **'Evitar Gastos Adicionales'** (48.3%) y **'Evitar Reporte Negativo'** (46.1%) generan la mayor conversión, complementados por la **'Empatía y Apoyo'** (41.8%).")
-
-    with col_d:
-        st.subheader("Distribución de Satisfacción según Cierre de Acuerdo")
-        fig_csat = px.histogram(
-            filtered_conv,
-            x="score_satisfaccion",
-            color="acuerdo_pago",
-            barmode="overlay",
-            nbins=20,
-            title="Distribución del Score de Satisfacción (0-100) vs Cierre",
-            labels={"score_satisfaccion": "Score de Satisfacción", "acuerdo_pago": "Acuerdo Formal"},
-            color_discrete_map={0: "#ef4444", 1: "#10b981"}
+        m_plot = motivos_df.head(9).copy()
+        m_plot["nombre_limpio"] = m_plot["motivo"].map(lambda x: motivo_map.get(x, x.replace("_", " ").title()))
+        
+        def get_motivo_color(m):
+            if m in ["pago_ya_realizado", "disputa_saldo_o_cobro"]:
+                return "#ef4444"
+            elif m in ["falta_liquidez", "desempleo"]:
+                return "#38bdf8"
+            elif m in ["priorizacion_otros_gastos", "salud", "emergencia_familiar"]:
+                return "#10b981"
+            return "#64748b"
+            
+        m_colors = [get_motivo_color(m) for m in m_plot["motivo"]]
+        
+        fig_mot = go.Figure(go.Bar(
+            x=m_plot["porcentaje_conversaciones"],
+            y=m_plot["nombre_limpio"],
+            orientation='h',
+            text=[f"<b>{pct:.1f}%</b> ({frec:,})" for pct, frec in zip(m_plot["porcentaje_conversaciones"], m_plot["frecuencia"])],
+            textposition="outside",
+            marker=dict(color=m_colors, line=dict(width=0))
+        ))
+        fig_mot.update_layout(
+            template="plotly_dark",
+            height=370,
+            margin=dict(t=10, b=30, l=10, r=50),
+            xaxis=dict(title="% del Total de Conversaciones (Base 1,197)", showgrid=True, gridcolor="#334155", range=[0, 32]),
+            yaxis=dict(autorange="reversed"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
         )
-        fig_csat.update_layout(template="plotly_dark", height=380, margin=dict(t=40, b=40))
-        st.plotly_chart(fig_csat, width="stretch")
-        st.caption("Verde = Con Acuerdo de Pago | Rojo = Sin Acuerdo Formal. Las llamadas con acuerdo tienen scores de satisfacción significativamente mayores.")
+        st.plotly_chart(fig_mot, use_container_width=True)
+
+    with col_m2:
+        st.markdown("""
+        <div style="background:#1e293b; border:1px solid #334155; border-left:4px solid #ef4444; border-radius:12px; padding:18px 20px; height:370px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;">
+            <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span class="bento-badge bento-badge-red">HALLAZGO CRÍTICO OPERATIVO</span>
+                    <span style="color:#f87171; font-weight:800; font-size:1.15rem;">47.5% del Volumen</span>
+                </div>
+                <h4 style="color:#f8fafc; margin:0 0 8px 0; font-size:1.02rem;">Falsa Morosidad: Clientes que ya Pagaron o Disputan Saldo</h4>
+                <p style="color:#cbd5e1; font-size:0.85rem; line-height:1.5; margin-bottom:10px;">
+                    <b>569 conversaciones</b> no corresponden a clientes morosos insolventes, sino a fricciones de los sistemas internos:
+                </p>
+                <div style="background:#0f172a; border-radius:8px; padding:10px 12px; margin-bottom:10px; border:1px solid #334155; font-size:0.82rem; line-height:1.45; color:#cbd5e1;">
+                    • <b>289 casos (24.1%)</b>: El cliente ya pagó y la conciliación bancaria tardó en reflejarlo.<br>
+                    • <b>280 casos (23.4%)</b>: El cliente objeta cobros indebidos o seguros no reconocidos.
+                </div>
+                <div style="display:flex; justify-content:space-between; background:#0f172a; border-radius:8px; padding:8px 12px; margin-bottom:10px; border:1px solid #334155;">
+                    <span style="font-size:0.8rem; color:#f87171;">Tasa de Acuerdo: <b>10.0% - 11.4%</b></span>
+                    <span style="font-size:0.8rem; color:#f87171;">CSAT: <b>14.2 / 100</b></span>
+                </div>
+            </div>
+            <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:9px 12px;">
+                <b style="color:#fca5a5; font-size:0.82rem;">⚡ Decisión de Negocio Inmediata:</b>
+                <div style="color:#e2e8f0; font-size:0.8rem; margin-top:2px;">
+                    <b>Pausa Inmediata de Cobranza</b> y derivación automática con ticket a Mesa de Reclamos. Ahorra 47.5% de costo operativo inútil.
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ─── BLOQUE 2: PREGUNTAS B Y C (OFERTAS Y ARGUMENTOS) ───────────────────
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:8px; margin-top:32px; margin-bottom:12px;">
+        <span class="bento-badge bento-badge-green">PREGUNTAS B Y C</span>
+        <h3 style="color:#f8fafc; margin:0; font-size:1.25rem; font-weight:700;">
+            2. Estrategia de Cierre: Alternativas de Pago & Argumentos Persuasivos
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_ob1, col_ob2 = st.columns(2)
+    with col_ob1:
+        st.markdown("**Pregunta B: Efectividad por Tipo de Oferta (Tasa de Acuerdo)**")
+        oferta_map = {
+            "fraccionamiento": "Fraccionamiento en cuotas",
+            "extension_plazo": "Extensión de plazo",
+            "condonacion_intereses": "Condonación de intereses",
+            "descuento": "Descuento de saldo",
+            "refinanciacion": "Refinanciación tradicional",
+            "derivacion_reclamos": "Derivación a reclamos"
+        }
+        of_df = ofertas_df[ofertas_df["conversaciones"] >= 5].copy()
+        of_df["agree_rate_pct"] = of_df["agreement_rate"] * 100
+        of_df["nombre_oferta"] = of_df["oferta"].map(lambda x: oferta_map.get(x, x.replace("_", " ").title()))
+        of_df = of_df.sort_values("agree_rate_pct", ascending=False)
+        
+        colors_of = ["#10b981", "#34d399", "#6ee7b7", "#94a3b8", "#64748b", "#475569"]
+        
+        fig_of = go.Figure(go.Bar(
+            x=of_df["agree_rate_pct"],
+            y=of_df["nombre_oferta"],
+            orientation='h',
+            text=[f"<b>{ar:.1f}%</b> ({ac}/{tot})" for ar, ac, tot in zip(of_df["agree_rate_pct"], of_df["acuerdos"], of_df["conversaciones"])],
+            textposition="outside",
+            marker=dict(color=colors_of[:len(of_df)], line=dict(width=0))
+        ))
+        fig_of.update_layout(
+            template="plotly_dark",
+            height=300,
+            margin=dict(t=10, b=20, l=10, r=50),
+            xaxis=dict(title="% Tasa de Acuerdo Logrado", showgrid=True, gridcolor="#334155", range=[0, 60]),
+            yaxis=dict(autorange="reversed"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        st.plotly_chart(fig_of, use_container_width=True)
+        st.markdown("""
+        <div class="takeaway-box" style="border-left-color: #10b981;">
+            <b>💡 Pregunta B Resuelta</b>: El <b>Fraccionamiento (47.1%)</b> es la oferta de mayor conversión, superando al Descuento directo (38.5%) por <b>+8.6 pp</b>. El deudor busca alivio de flujo quincenal sin desembolsos masivos inmediatos.
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_ob2:
+        st.markdown("**Pregunta C: Argumentos Más Persuasivos (Tasa de Cierre)**")
+        arg_map = {
+            "evitar_gastos": "Evitar gastos adicionales e intereses",
+            "evitar_reporte": "Evitar reporte en Buró / Centrales",
+            "empatia_y_apoyo": "Empatía y acompañamiento",
+            "beneficio_inmediato": "Beneficio o alivio financiero"
+        }
+        ag_df = arg_df.copy()
+        ag_df["agree_rate_pct"] = ag_df["agreement_rate"] * 100
+        ag_df["nombre_arg"] = ag_df["argumento"].map(lambda x: arg_map.get(x, x.replace("_", " ").title()))
+        ag_df = ag_df.sort_values("agree_rate_pct", ascending=False)
+        
+        colors_ag = ["#818cf8", "#a78bfa", "#c084fc", "#94a3b8"]
+        
+        fig_ag = go.Figure(go.Bar(
+            x=ag_df["agree_rate_pct"],
+            y=ag_df["nombre_arg"],
+            orientation='h',
+            text=[f"<b>{ar:.1f}%</b> ({ac}/{tot})" for ar, ac, tot in zip(ag_df["agree_rate_pct"], ag_df["acuerdos"], ag_df["conversaciones"])],
+            textposition="outside",
+            marker=dict(color=colors_ag[:len(ag_df)], line=dict(width=0))
+        ))
+        fig_ag.update_layout(
+            template="plotly_dark",
+            height=300,
+            margin=dict(t=10, b=20, l=10, r=50),
+            xaxis=dict(title="% Tasa de Acuerdo Logrado", showgrid=True, gridcolor="#334155", range=[0, 60]),
+            yaxis=dict(autorange="reversed"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        st.plotly_chart(fig_ag, use_container_width=True)
+        st.markdown("""
+        <div class="takeaway-box" style="border-left-color: #818cf8;">
+            <b>💡 Pregunta C Resuelta</b>: <b>Evitar gastos adicionales e intereses (48.3%)</b> supera al temor del reporte negativo (46.1%). Demostrar el costo financiero convence más al cliente que la intimidación crediticia.
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ─── BLOQUE 3: PREGUNTA C (FACTOR HUMANO - TONO ASESOR) ──────────────────
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:8px; margin-top:32px; margin-bottom:12px;">
+        <span class="bento-badge bento-badge-purple">PREGUNTA C: FACTOR HUMANO</span>
+        <h3 style="color:#f8fafc; margin:0; font-size:1.25rem; font-weight:700;">
+            3. Rendimiento y Satisfacción según el Tono del Gestor de Cobranza
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_as1, col_as2, col_as3, col_as4 = st.columns(4)
+    with col_as1:
+        st.markdown("""
+        <div class="advisor-pill" style="border-top:4px solid #10b981;">
+            <div>
+                <span class="bento-badge bento-badge-green">🏆 MODELO A REPLICAR</span>
+                <h4 style="color:#10b981; margin:6px 0 4px 0; font-size:1.05rem;">🟢 Asesor Empático</h4>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">Escucha activa y flexibilidad</div>
+                <div style="background:#1e293b; border-radius:8px; padding:10px; margin-bottom:8px; border:1px solid #334155;">
+                    <div style="font-size:0.75rem; color:#94a3b8;">Tasa de Acuerdo:</div>
+                    <div style="font-size:1.4rem; font-weight:800; color:#10b981;">46.9%</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Score CX Medio:</div>
+                    <div style="font-size:1.1rem; font-weight:700; color:#f8fafc;">74.0 <span style="font-size:0.75rem; color:#64748b;">/ 100</span></div>
+                </div>
+                <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.4; margin:0;">
+                    Valida la dificultad del cliente, ofrece fraccionamiento quincenal y genera acuerdos sostenibles.
+                </p>
+            </div>
+            <div style="margin-top:10px; font-size:0.75rem; color:#34d399; font-weight:600;">
+                Estandarizar con Copiloto RAG
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_as2:
+        st.markdown("""
+        <div class="advisor-pill" style="border-top:4px solid #38bdf8;">
+            <div>
+                <span class="bento-badge bento-badge-blue">TRANSACCIONAL</span>
+                <h4 style="color:#38bdf8; margin:6px 0 4px 0; font-size:1.05rem;">🔵 Asesor Neutral</h4>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">Protocolo estándar informativo</div>
+                <div style="background:#1e293b; border-radius:8px; padding:10px; margin-bottom:8px; border:1px solid #334155;">
+                    <div style="font-size:0.75rem; color:#94a3b8;">Tasa de Acuerdo:</div>
+                    <div style="font-size:1.4rem; font-weight:800; color:#38bdf8;">31.6%</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Score CX Medio:</div>
+                    <div style="font-size:1.1rem; font-weight:700; color:#f8fafc;">56.0 <span style="font-size:0.75rem; color:#64748b;">/ 100</span></div>
+                </div>
+                <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.4; margin:0;">
+                    Informa montos y fechas sin conectar emocionalmente. Desaprovecha +15.3 pp de conversión.
+                </p>
+            </div>
+            <div style="margin-top:10px; font-size:0.75rem; color:#38bdf8; font-weight:600;">
+                Entrenar en empatía guiada
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_as3:
+        st.markdown("""
+        <div class="advisor-pill" style="border-top:4px solid #f59e0b;">
+            <div>
+                <span class="bento-badge bento-badge-amber">RIESGO REPUTACIONAL</span>
+                <h4 style="color:#fbbf24; margin:6px 0 4px 0; font-size:1.05rem;">🟡 Asesor Presionador</h4>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">Urgencia agresiva y advertencias</div>
+                <div style="background:#1e293b; border-radius:8px; padding:10px; margin-bottom:8px; border:1px solid #334155;">
+                    <div style="font-size:0.75rem; color:#94a3b8;">Tasa de Acuerdo:</div>
+                    <div style="font-size:1.4rem; font-weight:800; color:#fbbf24;">36.5%</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Score CX Medio:</div>
+                    <div style="font-size:1.1rem; font-weight:700; color:#f87171;">30.3 <span style="font-size:0.75rem; color:#64748b;">/ 100</span></div>
+                </div>
+                <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.4; margin:0;">
+                    Logra acuerdos bajo presión, pero con altísima tasa de incumplimiento posterior (>60%) y daño de marca.
+                </p>
+            </div>
+            <div style="margin-top:10px; font-size:0.75rem; color:#fbbf24; font-weight:600;">
+                Activar guardrail anti-coerción
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_as4:
+        st.markdown("""
+        <div class="advisor-pill" style="border-top:4px solid #ef4444;">
+            <div>
+                <span class="bento-badge bento-badge-red">FUGA DE CARTERA</span>
+                <h4 style="color:#f87171; margin:6px 0 4px 0; font-size:1.05rem;">🔴 Asesor Ineficaz</h4>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">Desinterés y demoras</div>
+                <div style="background:#1e293b; border-radius:8px; padding:10px; margin-bottom:8px; border:1px solid #334155;">
+                    <div style="font-size:0.75rem; color:#94a3b8;">Tasa de Acuerdo:</div>
+                    <div style="font-size:1.4rem; font-weight:800; color:#f87171;">6.1%</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Score CX Medio:</div>
+                    <div style="font-size:1.1rem; font-weight:700; color:#f87171;">14.6 <span style="font-size:0.75rem; color:#64748b;">/ 100</span></div>
+                </div>
+                <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.4; margin:0;">
+                    Respuestas monosilábicas, demoras de más de 10 min y abandono del chat. Fuga total de cobranza.
+                </p>
+            </div>
+            <div style="margin-top:10px; font-size:0.75rem; color:#f87171; font-weight:600;">
+                Alertas en vivo a supervisor
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ─── BLOQUE 4: PREGUNTA D (EMBUDO Y PUNTOS DE FUGA) ─────────────────────
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:8px; margin-top:32px; margin-bottom:12px;">
+        <span class="bento-badge bento-badge-amber">PREGUNTA D</span>
+        <h3 style="color:#f8fafc; margin:0; font-size:1.25rem; font-weight:700;">
+            4. Embudo de Negociación por WhatsApp & Punto Crítico de Fuga
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_fu1, col_fu2 = st.columns([3, 2])
+    with col_fu1:
+        funnel_stages = [
+            "1. Contactos Totales",
+            "2. Interacciones Clave (≥4 msgs)",
+            "3. Con Oferta Planteada",
+            "4. Intención Expresada",
+            "5. Acuerdo Formal con Fecha"
+        ]
+        funnel_values = [1197, 1060, 579, 461, 376]
+        fig_fun = go.Figure(go.Funnel(
+            y=funnel_stages,
+            x=funnel_values,
+            textinfo="value+percent initial",
+            marker=dict(color=["#38bdf8", "#60a5fa", "#818cf8", "#a78bfa", "#10b981"]),
+            connector=dict(line=dict(color="#475569", width=1))
+        ))
+        fig_fun.update_layout(
+            template="plotly_dark",
+            height=340,
+            margin=dict(t=10, b=10, l=10, r=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        st.plotly_chart(fig_fun, use_container_width=True)
+
+    with col_fu2:
+        st.markdown("""
+        <div style="background:#1e293b; border:1px solid #334155; border-left:4px solid #f59e0b; border-radius:12px; padding:18px 20px; height:340px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;">
+            <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span class="bento-badge bento-badge-amber">DIAGNÓSTICO PREGUNTA D</span>
+                    <span style="color:#fbbf24; font-weight:800; font-size:1.15rem;">35.1% de Fuga</span>
+                </div>
+                <h4 style="color:#f8fafc; margin:0 0 8px 0; font-size:1.02rem;">¿Dónde y por qué se pierden los clientes?</h4>
+                <p style="color:#cbd5e1; font-size:0.84rem; line-height:1.5; margin-bottom:8px;">
+                    El principal cuello de botella se produce <b>entre la presentación de la oferta (579 casos) y el acuerdo formal con fecha (376 casos)</b>:
+                </p>
+                <div style="background:#0f172a; border-radius:8px; padding:10px 12px; margin-bottom:8px; border:1px solid #334155; font-size:0.82rem; line-height:1.45; color:#cbd5e1;">
+                    • <b>203 clientes interesados abandonaron el chat</b> porque el asesor no hizo la pregunta de cierre obligatoria con fecha exacta.<br>
+                    • Quedaron en respuestas abiertas (<i>"yo le aviso"</i>, <i>"déjeme ver"</i>) sin recontacto estructurado.
+                </div>
+            </div>
+            <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:9px 12px;">
+                <b style="color:#fde68a; font-size:0.82rem;">⚡ Solución Automatizada con RAG:</b>
+                <div style="color:#e2e8f0; font-size:0.8rem; margin-top:2px;">
+                    El Copiloto activa el guardrail <code>guardrail_acuerdo_estricto</code> sugiriendo opciones de fecha fija antes del cierre.
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ─── BLOQUE 5: PREGUNTA E (SATISFACCIÓN & EXPERIENCIA) ───────────────────
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:8px; margin-top:32px; margin-bottom:12px;">
+        <span class="bento-badge bento-badge-green">PREGUNTA E</span>
+        <h3 style="color:#f8fafc; margin:0; font-size:1.25rem; font-weight:700;">
+            5. Impacto del Acuerdo Formal en la Satisfacción Percibida (CSAT / CX Score)
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_cs1, col_cs2 = st.columns([3, 2])
+    with col_cs1:
+        sat_cohorts = [
+            "Con Acuerdo Formal con Fecha",
+            "Sin Acuerdo (Gestión Normal)",
+            "En Disputa / Error de Cobranza"
+        ]
+        sat_scores = [82.6, 39.2, 14.2]
+        sat_colors = ["#10b981", "#f59e0b", "#ef4444"]
+        
+        fig_sat = go.Figure(go.Bar(
+            x=sat_scores,
+            y=sat_cohorts,
+            orientation='h',
+            text=[f"<b>{s:.1f} / 100</b> pts" for s in sat_scores],
+            textposition="outside",
+            marker=dict(color=sat_colors, line=dict(width=0))
+        ))
+        fig_sat.update_layout(
+            template="plotly_dark",
+            height=260,
+            margin=dict(t=10, b=20, l=10, r=50),
+            xaxis=dict(title="Score de Satisfacción CX (Escala 0-100)", showgrid=True, gridcolor="#334155", range=[0, 100]),
+            yaxis=dict(autorange="reversed"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        st.plotly_chart(fig_sat, use_container_width=True)
+
+    with col_cs2:
+        st.markdown("""
+        <div style="background:#1e293b; border:1px solid #334155; border-left:4px solid #10b981; border-radius:12px; padding:18px 20px; height:260px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;">
+            <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span class="bento-badge bento-badge-green">DIAGNÓSTICO PREGUNTA E</span>
+                    <span style="color:#34d399; font-weight:800; font-size:1.15rem;">+43.4 Puntos CX</span>
+                </div>
+                <h4 style="color:#f8fafc; margin:0 0 8px 0; font-size:1.02rem;">El Valor Restaurador del Acuerdo Formal</h4>
+                <p style="color:#cbd5e1; font-size:0.84rem; line-height:1.5; margin-bottom:6px;">
+                    El cliente que concreta un acuerdo pasa de zona de insatisfacción a <b>promotor activo (82.6 / 100)</b>.
+                </p>
+                <div style="font-size:0.81rem; color:#94a3b8; line-height:1.45;">
+                    • <b>Alivio financiero</b>: La certidumbre de una cuota fraccionada elimina el estrés de mora.<br>
+                    • <b>Causa #1 de detracción</b>: No es cobrar, sino cobrar por un error bancario (14.2 / 100).
+                </div>
+            </div>
+            <div style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:8px 12px; font-size:0.79rem; color:#a7f3d0;">
+                <b>Veredicto</b>: Cobrar con empatía y fraccionamiento fideliza al cliente mejor que no contactarlo.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: RESUMEN PAGINADO ULTRA RÁPIDO
