@@ -1,5 +1,5 @@
 # Propuesta Arquitectónica RAG para Estandarización de Respuestas en Cobranzas por WhatsApp
-## Basada en análisis empírico de 1,197 conversaciones reales
+## Basada en análisis empírico de la base suministrada y anonimizada/sintética (1,197 conversaciones / 42,607 interacciones)
 
 ---
 
@@ -7,19 +7,21 @@
 
 El análisis empírico de **1,197 conversaciones** (42,607 mensajes) de la operación de cobranza por WhatsApp revela los siguientes hallazgos críticos que fundamentan la arquitectura RAG propuesta:
 
-| Hallazgo | Dato Real | Implicación para RAG |
+| Hallazgo | Dato Consolidado | Implicación para RAG |
 |---|---|---|
-| **Tasa global de acuerdo** | 84 / 1,197 = **7.0%** | El sistema actual es muy ineficiente; hay margen enorme de mejora |
-| **Motivo dominante** | Desconexión/rebote = **52.7%** (631 casos) | El mayor problema es operativo, no financiero |
-| **Mejor motivo para cerrar** | Priorización otros gastos = **14.3%** acuerdo | La negociación con argumentos de costo-beneficio es más efectiva |
-| **Argumento más efectivo** | Evitar gastos adicionales = **10.9%** acuerdo | La lógica financiera supera al argumento emocional |
-| **CSAT promedio** | 5.43 / 7 (235 declarados) | Satisfacción media; amplio espacio de mejora |
-| **Score satisfacción promedio** | 61.8 / 100 | Desempeño por debajo del benchmark de excelencia (>80) |
-| **Casos críticos detectados** | 5 conversaciones con CSAT=0 y score=-17 | Patrones recurrentes: cobro erróneo, rebote de canales, disputas sin resolver |
+| **Tasa global de acuerdo** | 376 / 1,197 = **31.41%** | Criterio estricto de acuerdo: intención expresa + fecha específica de pago. Hay un 68.6% de margen de recuperación donde el cliente no concretó fecha. |
+| **Motivo dominante** | Falta de liquidez = **24.48%** (293 casos) | Fricción económica transitoria que requiere alternativas flexibles de cuota y plazo antes que cobro coercitivo. |
+| **Segundo motivo más frecuente** | Pago ya realizado = **24.14%** (289 casos) | Fricción operativa severa: clientes que ya pagaron y reciben cobro por desfase en la conciliación contable. Requiere pausa de cobro inmediata. |
+| **Tercer motivo más frecuente** | Disputa de saldo o cobro = **23.39%** (280 casos) | Inconformidad con el valor de cuota, intereses o cobro de seguros no contratados. Requiere derivación a Mesa de Reclamos. |
+| **Oferta más efectiva para cerrar** | Fraccionamiento = **47.06%** acuerdo | Dividir la cuota en pagos menores con fecha concreta supera a cualquier otra oferta (64 acuerdos de 136 casos). |
+| **Argumento más efectivo** | Evitar gastos adicionales = **48.30%** acuerdo | La explicación del costo financiero de honorarios/judicial moviliza más que el temor a centrales de riesgo (85 acuerdos de 176). |
+| **CSAT Observado promedio** | 5.43 / 7 (235 declarados) | Cobertura del 19.6% de encuestas completas. Focos severos de detracción (notas 0, 1 y 2). |
+| **Score satisfacción promedio** | 52.8 / 100 | Desempeño medio a nivel poblacional, fuertemente afectado por cobros indebidos y disputas. |
+| **Casos críticos detectados** | 5 conversaciones con CSAT=0/7 y score=0/100 | Patrones recurrentes: cobro erróneo, rebote de canales y disputas sin resolver. |
 
 ### 1.1. Problemas Críticos Identificados en las Peores 5 Conversaciones
 
-Del análisis cualitativo de las 5 conversaciones con peor calificación (CSAT=0, score=-17), se identificaron **3 patrones de falla sistémica** que el RAG debe prevenir activamente:
+Del análisis cualitativo de las 5 conversaciones con peor calificación observada (CSAT=0/7 y score=0/100), se identificaron **3 patrones de falla sistémica** que el RAG debe prevenir activamente:
 
 | Patrón de Falla | Conversaciones Afectadas | Raíz del Problema |
 |---|---|---|
@@ -253,30 +255,30 @@ La KB debe estructurarse según la **distribución real** de los datos, prioriza
 ```
 Motivo                      Frecuencia  % del Total  Tasa Acuerdo Actual
 ──────────────────────────────────────────────────────────────────────────
-desconexion_o_rebote            631       52.7%          5.2%   ← CRÍTICO
-falta_liquidez                  299       25.0%          7.4%
-pago_ya_realizado                80        6.7%          2.9%   ← RIESGO CX
-priorizacion_otros_gastos        79        6.6%         14.3%   ← MEJOR TASA
-desempleo                        69        5.8%         12.1%
-salud                            29        2.4%         10.0%
-disputa_saldo_o_cobro            24        2.0%         10.5%
-consulta_o_tramite               20        1.7%          0.0%
-emergencia_familiar               2        0.2%          0.0%
+falta_liquidez                  293       24.48%        43.69%  ← PRINCIPAL CAUSA
+pago_ya_realizado               289       24.14%        10.03%  ← RIESGO CX (COBRO INDEBIDO)
+disputa_saldo_o_cobro           280       23.39%        11.43%  ← DISPUTA / SEGUROS
+consulta_o_tramite              192       16.04%        34.38%
+desconexion_o_rebote            137       11.45%        48.91%  ← DESCONEXIÓN REAL
+desempleo                       108        9.02%        28.70%
+priorizacion_otros_gastos        54        4.51%        44.44%  ← ALTA TASA DE ACUERDO
+emergencia_familiar              35        2.92%        57.14%
+salud                            28        2.34%        46.43%
 ```
 
-> **Insight clave**: El 52.7% de los clientes se desconectan sin dar un motivo claro. El RAG debe tener un protocolo especial de **re-engagement** para este segmento, no asumir que son evasivos.
+> **Insight clave**: El **47.5%** de las interacciones corresponden a `pago_ya_realizado` (24.1%) y `disputa_saldo_o_cobro` (23.4%). Casi la mitad de las objeciones provienen de clientes que ya cancelaron su obligación o discuten conceptos del saldo; el RAG debe pausar automáticamente la cobranza en estos dos escenarios antes de exigir pagos.
 
 ### 3.2. Matriz de Atribución Oferta → Motivo (con Efectividad Real)
 
 | Motivo del Cliente | Oferta Recomendada | Argumento Más Efectivo | Tasa Cierre Esperada |
 |---|---|---|---|
-| `falta_liquidez` | Fraccionamiento (8.9%) | Evitar gastos adicionales | ~10% |
-| `desempleo` | Extensión de plazo (8.4%) | Empatía y apoyo (10.2%) | ~12% |
-| `priorizacion_otros_gastos` | Fraccionamiento mínimo | Evitar gastos adicionales (10.9%) | ~14% |
-| `salud` | Condonación de intereses | Empatía y apoyo | ~10% |
-| `disputa_saldo_o_cobro` | **PAUSA + Derivación Mesa Reclamos** | No ofrecer pago | ~0% (prioridad: retención) |
-| `pago_ya_realizado` | **VERIFICACIÓN INMEDIATA** | No insistir en cobro | N/A (error operativo) |
-| `desconexion_o_rebote` | Re-engagement + Oferta Simple | Beneficio inmediato (7.6%) | ~5% |
+| `falta_liquidez` | Fraccionamiento (47.1%) | Evitar gastos adicionales (48.3%) | ~47% |
+| `desempleo` | Extensión de plazo (44.6%) / Fraccionamiento | Evitar reporte a centrales (46.1%) | ~45% |
+| `priorizacion_otros_gastos` | Plan escalonado quincenal | Evitar gastos adicionales (48.3%) | ~48% |
+| `salud` | Condonación de mora (40.0%) | Empatía y apoyo (41.8%) | ~40% |
+| `disputa_saldo_o_cobro` | **PAUSA + Derivación Mesa Reclamos** | Transparencia y auditoría | ~0% (prioridad: retención) |
+| `pago_ya_realizado` | **VERIFICACIÓN INMEDIATA (PAUSA)** | Empatía y aclaración en 24h | N/A (conciliación contable) |
+| `desconexion_o_rebote` | FCR en canal actual (WhatsApp) | Beneficio inmediato (37.0%) | ~15% |
 
 ### 3.3. Fuentes de la KB
 
@@ -291,13 +293,13 @@ KB/
 │   ├── guion_desempleo.md
 │   ├── guion_pago_ya_realizado.md       # NUEVO: creado desde CONV_00000018
 │   ├── guion_disputa_saldo.md           # NUEVO: creado desde CONV_00000083
-│   └── guion_reengagement_silencio.md   # NUEVO: para 52.7% desconexiones
+│   └── guion_reengagement_silencio.md   # NUEVO: para 11.5% desconexiones
 ├── compliance/
 │   ├── frases_prohibidas.md
 │   ├── normativa_legal.md
 │   └── protocolo_escalamiento.md       # Para casos CSAT crítico
 └── ejemplos/
-    ├── conversaciones_exitosas/          # 84 conversaciones con acuerdo=1
+    ├── conversaciones_exitosas/          # 376 conversaciones con acuerdo=1
     └── casos_criticos_aprendizaje/       # 5 worst cases como anti-ejemplos
 ```
 
@@ -328,7 +330,7 @@ CHUNKING_STRATEGY = {
 }
 ```
 
-### 4.2. Metadata Schema por Chunk (Validado con Datos Reales)
+### 4.2. Metadata Schema por Chunk (Validado con Datos Consolidados)
 
 ```json
 {
@@ -342,7 +344,7 @@ CHUNKING_STRATEGY = {
   "tramo_mora": "30-60",
   "segmento_producto": "credito_consumo | hipotecario | vehiculo",
   "vigencia": "2024-01",
-  "acuerdo_esperado": 0.089,
+  "acuerdo_esperado": 0.471,
   "canal": "whatsapp",
   "compliance_verified": true,
   "embedding_model": "text-embedding-3-large",
@@ -360,7 +362,7 @@ Vector DB: Qdrant (self-hosted)
 Colecciones en Qdrant:
   ├── col_politicas          # Documentos normativos
   ├── col_guiones            # Scripts por motivo
-  ├── col_ejemplos_exitosos  # 84 conversaciones con acuerdo=1
+  ├── col_ejemplos_exitosos  # 376 conversaciones con acuerdo=1
   └── col_casos_criticos     # Anti-ejemplos de las 5 peores CSAT
 ```
 
@@ -406,7 +408,7 @@ flowchart LR
 
 ---
 
-## 6. Generación Controlada: Prompt Engineering con Datos Reales
+## 6. Generación Controlada: Prompt Engineering con Datos Consolidados
 
 ### 6.1. JSON Schema de Salida (Output Estructurado)
 
@@ -470,17 +472,17 @@ flowchart LR
 ```yaml
 System Prompt:
   Eres el Copiloto Inteligente de Cobranza Ética del Banco. Estás entrenado con
-  1,197 conversaciones reales de WhatsApp. Tu objetivo es guiar al asesor para
+  1,197 conversaciones de la base suministrada y anonimizada de WhatsApp. Tu objetivo es guiar al asesor para
   cerrar acuerdos de pago con fecha explícita, manteniendo una experiencia
   de cliente superior (CSAT > 85/100).
 
-  CONTEXTO ESTADÍSTICO (datos reales del sistema):
-  - Tasa actual de acuerdos: 7.0% (84/1,197 conversaciones)
-  - Argumento más efectivo: "evitar_gastos" → 10.9% de acuerdo
-  - Oferta más efectiva: fraccionamiento → 8.9% de acuerdo
-  - El 52.7% de clientes se desconectan → usa protocolo de re-engagement
+  CONTEXTO ESTADÍSTICO (datos consolidados del sistema):
+  - Tasa actual de acuerdos: 31.41% (376/1,197 conversaciones)
+  - Argumento más efectivo: "evitar_gastos" → 48.3% de acuerdo
+  - Oferta más efectiva: fraccionamiento → 47.1% de acuerdo
+  - El 11.5% de clientes se desconectan (137 casos) → usa protocolo de re-engagement
 
-  REGLAS CRÍTICAS (basadas en análisis de peores 5 casos CSAT=0):
+  REGLAS CRÍTICAS (basadas en análisis de peores 5 casos CSAT=0/7):
   1. Si detectas motivo "pago_ya_realizado": DETÉN el proceso de cobro
      inmediatamente. Activa protocolo de verificación. Nunca insistas en pago.
   2. Si detectas motivo "disputa_saldo_o_cobro": NO ofrezcas pago.
@@ -543,7 +545,7 @@ flowchart TD
     G6 -->|No| MOD
 ```
 
-### 7.2. Triggers de Escalamiento Automático (desde datos reales)
+### 7.2. Triggers de Escalamiento Automático (desde datos consolidados)
 
 | Condición Detectada | Acción | Prioridad |
 |---|---|---|
@@ -556,7 +558,7 @@ flowchart TD
 
 ---
 
-## 8. Métricas de Evaluación RAG (Calibradas con Datos Reales)
+## 8. Métricas de Evaluación RAG (Calibradas con Datos Consolidados)
 
 ### 8.1. KPIs de Calidad del Sistema RAG
 
@@ -565,9 +567,9 @@ flowchart TD
 | **Calidad RAG** | Faithfulness | % afirmaciones con respaldo en KB | — | > 98% |
 | **Calidad RAG** | Answer Relevance | Similitud coseno (consulta ↔ respuesta) | — | > 0.90 |
 | **Calidad RAG** | Context Recall | % info relevante capturada en top-3 | — | > 0.85 |
-| **Negocio** | Agreement Uplift | ((acuerdos_RAG / acuerdos_base) - 1) × 100 | 7.0% | > 12% (+70% relativo) |
-| **Negocio** | CSAT Conversacional | Media de score_satisfaccion | 61.8 / 100 | > 80 / 100 |
-| **Negocio** | Tasa Escalamiento Correcto | Casos reales derivados / casos que debían derivarse | — | > 95% |
+| **Negocio** | Agreement Uplift | ((acuerdos_RAG / acuerdos_base) - 1) × 100 | 31.41% | > 40% (+27% relativo) |
+| **Negocio** | CSAT Conversacional | Media de score_satisfaccion | 52.8 / 100 | > 75 / 100 |
+| **Negocio** | Tasa Escalamiento Correcto | Casos derivados correctamente / casos que debían derivarse | — | > 95% |
 | **Riesgo** | Hallucination Rate | Respuestas con info no respaldada en KB | — | < 0.01% |
 | **Riesgo** | Compliance Rate | % respuestas sin violación de guardrails | — | 100% |
 | **Técnico** | Latencia P95 | Tiempo desde mensaje → recomendación | — | < 1.2 s |
@@ -578,12 +580,12 @@ flowchart TD
 ```
 Tipo de caso              N sugerido  Fuente
 ──────────────────────────────────────────────────────────
-falta_liquidez (alta vol)       60    conversaciones reales
-desconexion_o_rebote            60    conversaciones reales
-pago_ya_realizado               30    incl. CONV_00000018
-disputa_saldo                   20    incl. CONV_00000083, 89
+falta_liquidez (alta vol)       50    base suministrada y anonimizada
+pago_ya_realizado               50    incl. CONV_00000018
+disputa_saldo                   40    incl. CONV_00000042, 62, 83, 89
+desconexion_o_rebote            25    base suministrada y anonimizada
+desempleo                       20    casos con acuerdo exitoso
 priorizacion_otros_gastos       15    mejores tasas de acuerdo
-desempleo                       15    casos con acuerdo exitoso
 ────────────────────────────────────────────────────────────
 TOTAL                          200    conversaciones etiquetadas
 ```
@@ -603,7 +605,7 @@ graph LR
 
 ### 9.1. Uplift Modeling (Causal Machine Learning)
 
-**Problema identificado en datos**: Actualmente se ofrecen descuentos (`agreement_rate=6.9%`) y condonaciones (`agreement_rate=5.0%`) con menor efectividad que el fraccionamiento (`8.9%`) y la extensión de plazo (`8.4%`). Esto sugiere que muchos clientes que reciben descuentos hubieran pagado igualmente.
+**Problema identificado en datos**: El fraccionamiento alcanza una efectividad de **47.1%** y la extensión de plazo **44.6%**, superando a la refinanciación tradicional (**35.4%**) y a los descuentos sin fecha fija (**38.5%**). Esto sugiere que la estructuración de pagos quincenales en cuotas concretas es más efectiva que otorgar quitas de capital indiscriminadas.
 
 **Solución**: Entrenar modelos *T-Learner / X-Learner* para estimar el Efecto Causal Individual del Tratamiento (ITE):
 
@@ -617,7 +619,7 @@ donde $Y_i(1)$ = acuerdo con oferta de descuento y $Y_i(0)$ = acuerdo sin descue
 
 ### 9.2. BERTopic Supervisado (Tópicos Emergentes)
 
-**Insight desde datos**: El 52.7% categorizado como `desconexion_o_rebote` es demasiado amplio. Dentro de ese grupo hay subtópicos no capturados:
+**Insight desde datos**: Las 137 conversaciones de `desconexion_o_rebote` (11.5%) representan casos donde el cliente abandona sin resolución. Dentro de ese grupo hay subtópicos no capturados:
 
 - Clientes que se desconectan por **frustración con el canal** (diferente a evasión)
 - Clientes que se desconectan por **no tener información a la mano** (CONV_00000018)
@@ -627,7 +629,7 @@ donde $Y_i(1)$ = acuerdo con oferta de descuento y $Y_i(0)$ = acuerdo sin descue
 
 ### 9.3. Process Mining Conversacional
 
-**Secuencia óptima identificada en las 84 conversaciones con acuerdo exitoso**:
+**Secuencia óptima identificada en las 376 conversaciones con acuerdo exitoso**:
 
 ```
 [HSM_BIENVENIDA] → [DIAGNÓSTICO_MOTIVO] → [VALIDACIÓN_EMPÁTICA] →
@@ -709,14 +711,14 @@ gantt
 
 ## 11. Retorno Esperado sobre la Inversión (ROI)
 
-| Escenario | Tasa Acuerdo Proyectada | Mejora vs Línea Base (7.0%) | Impacto Financiero |
+| Escenario | Tasa Acuerdo Proyectada | Mejora vs Línea Base (31.4%) | Impacto Financiero |
 |---|---|---|---|
-| **Conservador** | 10.5% | +50% relativo | Recuperación adicional de 3.5% del portafolio |
-| **Moderado** | 12.0% | +71% relativo | Recuperación adicional de 5.0% del portafolio |
-| **Optimista** | 15.0% | +114% relativo | Recuperación adicional de 8.0% del portafolio |
+| **Conservador** | 36.0% | +14.6% relativo | Recuperación adicional de ~55 créditos morosos |
+| **Moderado** | 40.0% | +27.4% relativo | Recuperación adicional de ~103 créditos morosos |
+| **Optimista** | 45.0% | +43.3% relativo | Recuperación adicional de ~163 créditos morosos |
 
-> **Nota**: Dado que la tasa de `pago_ya_realizado` es del 6.7% y actualmente genera las peores experiencias (CSAT=0), la primera ganancia rápida es el protocolo de verificación, que elimina fricción sin costo de descuento.
+> **Nota**: Dado que la tasa de `pago_ya_realizado` es del 24.1% y actualmente genera las peores experiencias (CSAT=0/7), la primera ganancia rápida es el protocolo de verificación contable en tiempo real, que elimina el 24% de la detracción operativa sin costo financiero.
 
 ---
 
-*Propuesta elaborada con base en el análisis empírico de 1,197 conversaciones reales de WhatsApp de la operación de cobranza. Todas las tasas, distribuciones y hallazgos son extraídos directamente de la Base Sintética de Conversaciones procesada con el pipeline NLP/IA Generativa del proyecto VoC.*
+*Propuesta elaborada con base en el análisis empírico de la base suministrada y anonimizada/sintética (1,197 conversaciones de WhatsApp de la operación de cobranza). Todas las tasas, distribuciones y hallazgos son extraídos directamente del procesamiento semántico con IA Generativa del proyecto VoC.*
